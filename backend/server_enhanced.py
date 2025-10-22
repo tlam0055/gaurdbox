@@ -3,15 +3,11 @@ from flask_cors import CORS
 from smaj_kyber import keygen, set_mode, encapsulate, decapsulate
 import bcrypt
 import json
-import os
 import hashlib
 import hmac
 from datetime import datetime, timedelta
 import jwt
-from cryptography.hazmat.primitives import hashes, serialization
-from cryptography.hazmat.primitives.asymmetric import rsa, padding
-from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
-from cryptography.hazmat.backends import default_backend
+import secrets
 
 app = Flask(__name__)
 CORS(app)  # Enable CORS for all routes
@@ -23,20 +19,12 @@ set_mode("512")
 print("🔐 Generating Post-Quantum Cryptography keypairs...")
 server_pk, server_sk = keygen()  # Kyber KEM
 
-# Generate RSA keypair for digital signatures (simulating Dilithium)
-signature_private_key = rsa.generate_private_key(
-    public_exponent=65537,
-    key_size=2048,
-    backend=default_backend()
-)
-signature_public_key = signature_private_key.public_key()
-
 # In-memory user database (in production, use proper database)
 users_db = {
     "admin": {
         "password_hash": bcrypt.hashpw("admin123".encode('utf-8'), bcrypt.gensalt()),
         "kyber_keys": None,
-        "dilithium_keys": None,
+        "signature_keys": None,
         "created_at": datetime.now()
     }
 }
@@ -44,13 +32,36 @@ users_db = {
 # Secret key for JWT (in production, use environment variable)
 JWT_SECRET = "your-secret-key-change-in-production"
 
+def generate_signature_keypair():
+    """Generate a simple signature keypair (simulating Dilithium)"""
+    private_key = secrets.token_hex(32)
+    public_key = hashlib.sha256(private_key.encode()).hexdigest()
+    return public_key, private_key
+
+def sign_message(private_key, message):
+    """Sign a message using HMAC (simulating Dilithium signature)"""
+    return hmac.new(
+        private_key.encode(),
+        message.encode(),
+        hashlib.sha256
+    ).hexdigest()
+
+def verify_signature(public_key, message, signature):
+    """Verify a signature (simulating Dilithium verification)"""
+    expected_signature = hmac.new(
+        public_key.encode(),
+        message.encode(),
+        hashlib.sha256
+    ).hexdigest()
+    return hmac.compare_digest(signature, expected_signature)
+
 @app.route("/")
 def home():
     return jsonify({
         "message": "Post-Quantum Mail Service - Server Running",
         "features": [
             "Kyber512 KEM for key exchange",
-            "Dilithium digital signatures", 
+            "Digital signatures for message integrity", 
             "Secure user authentication",
             "Encrypted key storage"
         ]
@@ -64,12 +75,16 @@ def get_server_pk():
         "algorithm": "Kyber512"
     })
 
-# Endpoint to get server's Dilithium public key
+# Endpoint to get server's signature public key
 @app.route("/get_server_signature_pk", methods=["GET"])
 def get_server_signature_pk():
+    # Generate server signature keypair if not exists
+    if not hasattr(app, 'server_signature_pk'):
+        app.server_signature_pk, app.server_signature_sk = generate_signature_keypair()
+    
     return jsonify({
-        "public_key": dilithium_pk.hex(),
-        "algorithm": "Dilithium"
+        "public_key": app.server_signature_pk,
+        "algorithm": "HMAC-SHA256"
     })
 
 # User registration endpoint
@@ -91,7 +106,7 @@ def register():
         
         # Generate user's PQC keypairs
         user_kyber_pk, user_kyber_sk = keygen()
-        user_dilithium_pk, user_dilithium_sk = dilithium_keygen()
+        user_signature_pk, user_signature_sk = generate_signature_keypair()
         
         # Store user
         users_db[username] = {
@@ -100,9 +115,9 @@ def register():
                 "public": user_kyber_pk.hex(),
                 "private": user_kyber_sk.hex()
             },
-            "dilithium_keys": {
-                "public": user_dilithium_pk.hex(), 
-                "private": user_dilithium_sk.hex()
+            "signature_keys": {
+                "public": user_signature_pk, 
+                "private": user_signature_sk
             },
             "created_at": datetime.now()
         }
@@ -110,7 +125,7 @@ def register():
         return jsonify({
             "message": "User registered successfully",
             "user_kyber_pk": user_kyber_pk.hex(),
-            "user_dilithium_pk": user_dilithium_pk.hex()
+            "user_signature_pk": user_signature_pk
         })
         
     except Exception as e:
@@ -146,7 +161,7 @@ def login():
             "message": "Login successful",
             "token": token,
             "user_kyber_pk": user['kyber_keys']['public'],
-            "user_dilithium_pk": user['dilithium_keys']['public']
+            "user_signature_pk": user['signature_keys']['public']
         })
         
     except Exception as e:
@@ -187,13 +202,17 @@ def sign_message():
         if not message:
             return jsonify({"error": "Message required"}), 400
             
-        # Sign message with server's Dilithium private key
-        signature = sign(dilithium_sk, message.encode('utf-8'))
+        # Generate server signature keypair if not exists
+        if not hasattr(app, 'server_signature_pk'):
+            app.server_signature_pk, app.server_signature_sk = generate_signature_keypair()
+            
+        # Sign message with server's signature private key
+        signature = sign_message(app.server_signature_sk, message)
         
         return jsonify({
-            "signature": signature.hex(),
+            "signature": signature,
             "message": message,
-            "algorithm": "Dilithium"
+            "algorithm": "HMAC-SHA256"
         })
         
     except Exception as e:
@@ -205,23 +224,19 @@ def verify_signature():
     try:
         data = request.get_json()
         message = data.get('message')
-        signature_hex = data.get('signature')
-        public_key_hex = data.get('public_key')
+        signature = data.get('signature')
+        public_key = data.get('public_key')
         
-        if not all([message, signature_hex, public_key_hex]):
+        if not all([message, signature, public_key]):
             return jsonify({"error": "Message, signature, and public key required"}), 400
             
-        # Convert hex to bytes
-        signature = bytes.fromhex(signature_hex)
-        public_key = bytes.fromhex(public_key_hex)
-        
         # Verify signature
-        is_valid = verify(public_key, message.encode('utf-8'), signature)
+        is_valid = verify_signature(public_key, message, signature)
         
         return jsonify({
             "valid": is_valid,
             "message": message,
-            "algorithm": "Dilithium"
+            "algorithm": "HMAC-SHA256"
         })
         
     except Exception as e:
@@ -236,24 +251,24 @@ def test_pqc():
         ciphertext, shared_secret = encapsulate(test_pk)
         decrypted_secret = decapsulate(test_sk, ciphertext)
         
-        # Test Dilithium signatures
-        test_dilithium_pk, test_dilithium_sk = dilithium_keygen()
+        # Test digital signatures
+        test_signature_pk, test_signature_sk = generate_signature_keypair()
         test_message = "Post-Quantum Cryptography Test"
-        test_signature = sign(test_dilithium_sk, test_message.encode('utf-8'))
-        signature_valid = verify(test_dilithium_pk, test_message.encode('utf-8'), test_signature)
+        test_signature = sign_message(test_signature_sk, test_message)
+        signature_valid = verify_signature(test_signature_pk, test_message, test_signature)
         
         return jsonify({
             "kyber_test": {
                 "success": shared_secret == decrypted_secret,
                 "shared_secret_length": len(shared_secret)
             },
-            "dilithium_test": {
+            "signature_test": {
                 "success": signature_valid,
                 "signature_length": len(test_signature)
             },
             "server_info": {
                 "kyber_public_key": server_pk.hex()[:50] + "...",
-                "dilithium_public_key": dilithium_pk.hex()[:50] + "..."
+                "signature_public_key": getattr(app, 'server_signature_pk', 'Not generated yet')[:50] + "..."
             }
         })
         
@@ -262,7 +277,5 @@ def test_pqc():
 
 if __name__ == "__main__":
     print("✅ Kyber512 keypair generated")
-    print("✅ Dilithium keypair generated")
     print("Public Key (first 50 chars):", server_pk.hex()[:50], "...")
-    print("Dilithium Public Key (first 50 chars):", dilithium_pk.hex()[:50], "...")
     app.run(host="127.0.0.1", port=5000, debug=True)
