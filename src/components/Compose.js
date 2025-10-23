@@ -53,12 +53,10 @@ const Compose = ({ onClose, replyTo }) => {
         setPqcStatus('encrypting');
         console.log('🔐 Encrypting message with Post-Quantum Cryptography...');
         
-        // Get or create a shared secret for encryption
-        let sharedSecret = pqcService.sharedSecret;
-        if (!sharedSecret) {
-          console.log('No shared secret available, using fallback...');
-          sharedSecret = pqcService.createFallbackSecret();
-        }
+        // ALWAYS use the fallback secret for encryption
+        // This ensures consistency with decryption
+        const sharedSecret = pqcService.createFallbackSecret();
+        console.log('Using fallback shared secret for encryption:', sharedSecret.substring(0, 20) + '...');
         
         // Encrypt the message using PQC
         const encryptedBody = pqcService.encryptMessage(emailBody, sharedSecret);

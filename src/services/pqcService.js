@@ -192,28 +192,15 @@ class PQCService {
       
       console.log('Extracted encrypted message:', encryptedMessage.substring(0, 100) + '...');
       
-      // Use a simple approach: try to restore session or use a fallback
-      let sharedSecret = this.sharedSecret;
-      
-      if (!sharedSecret) {
-        console.log('No shared secret available, trying to restore session...');
-        
-        // Try to load from storage first
-        if (this.loadSessionInfo()) {
-          sharedSecret = this.sharedSecret;
-          console.log('Session restored from storage');
-        } else {
-          // Use a fallback approach - create a consistent secret based on session
-          console.log('Creating fallback shared secret...');
-          sharedSecret = this.createFallbackSecret();
-        }
-      }
-      
-      console.log('Using shared secret for decryption:', sharedSecret?.substring(0, 20) + '...');
+      // ALWAYS use the same fallback secret for decryption
+      // This ensures consistency with encryption
+      const sharedSecret = this.createFallbackSecret();
+      console.log('Using fallback shared secret for decryption:', sharedSecret.substring(0, 20) + '...');
       
       const decryptedContent = this.decryptMessage(encryptedMessage.trim(), sharedSecret);
       
       console.log('✅ Email content decrypted successfully');
+      console.log('Decrypted content preview:', decryptedContent.substring(0, 100) + '...');
       return decryptedContent;
       
     } catch (error) {
