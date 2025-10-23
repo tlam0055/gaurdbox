@@ -7,7 +7,8 @@ import {
   MoreVertical,
   RefreshCw,
   RotateCcw,
-  X
+  X,
+  Shield
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { useEmail } from '../context/EmailContext';
@@ -149,6 +150,9 @@ const EmailList = ({ onEmailSelect, selectedEmail }) => {
                 </span>
                 <span className={`subject ${!email.isRead ? 'fw-bold' : ''} flex-grow-1`}>
                   {email.subject}
+                  {email.isPQCEncrypted && (
+                    <Shield size={14} className="text-primary ms-2" title="PQC Encrypted" />
+                  )}
                 </span>
                 <small className="text-muted ms-2">
                   {format(new Date(email.timestamp), 'MMM d')}

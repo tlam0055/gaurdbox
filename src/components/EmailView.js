@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { 
   ArrowLeft, 
   Star, 
@@ -9,13 +9,20 @@ import {
   Archive,
   MoreVertical,
   RotateCcw,
-  X
+  X,
+  Key,
+  Shield
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { useEmail } from '../context/EmailContext';
+import pqcService from '../services/pqcService';
 
 const EmailView = ({ email, onBack }) => {
   const { toggleStar, deleteEmail, restoreEmail, permanentDeleteEmail, currentFolder } = useEmail();
+  const [isDecrypted, setIsDecrypted] = useState(false);
+  const [decryptedContent, setDecryptedContent] = useState('');
+  const [isDecrypting, setIsDecrypting] = useState(false);
+  const [decryptError, setDecryptError] = useState('');
 
   if (!email) {
     return (
@@ -47,6 +54,28 @@ const EmailView = ({ email, onBack }) => {
     if (window.confirm('Are you sure you want to permanently delete this email? This action cannot be undone.')) {
       permanentDeleteEmail(email.id);
       onBack();
+    }
+  };
+
+  const handleDecryptClick = async () => {
+    if (isDecrypted) {
+      setIsDecrypted(false);
+      setDecryptedContent('');
+      return;
+    }
+
+    setIsDecrypting(true);
+    setDecryptError('');
+
+    try {
+      const decrypted = await pqcService.decryptEmailContent(email.body);
+      setDecryptedContent(decrypted);
+      setIsDecrypted(true);
+    } catch (error) {
+      console.error('Decryption failed:', error);
+      setDecryptError('Failed to decrypt email. Make sure you have the correct PQC session active.');
+    } finally {
+      setIsDecrypting(false);
     }
   };
 
@@ -185,8 +214,48 @@ const EmailView = ({ email, onBack }) => {
           </div>
         </div>
 
+        {/* PQC Encryption Status and Decrypt Button */}
+        {email.isPQCEncrypted && (
+          <div className="mb-3 p-3 bg-light rounded border">
+            <div className="d-flex align-items-center justify-content-between">
+              <div className="d-flex align-items-center gap-2">
+                <Shield className="text-primary" size={20} />
+                <span className="fw-medium text-primary">Post-Quantum Encrypted Email</span>
+                <span className="badge bg-primary">PQC Secured</span>
+              </div>
+              <button
+                className={`btn btn-sm ${isDecrypted ? 'btn-outline-secondary' : 'btn-primary'}`}
+                onClick={handleDecryptClick}
+                disabled={isDecrypting}
+              >
+                {isDecrypting ? (
+                  <>
+                    <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                    Decrypting...
+                  </>
+                ) : isDecrypted ? (
+                  <>
+                    <Key size={16} className="me-1" />
+                    Hide Content
+                  </>
+                ) : (
+                  <>
+                    <Key size={16} className="me-1" />
+                    Decrypt Email
+                  </>
+                )}
+              </button>
+            </div>
+            {decryptError && (
+              <div className="alert alert-danger mt-2 mb-0" role="alert">
+                {decryptError}
+              </div>
+            )}
+          </div>
+        )}
+
         <div className="text-dark" style={{ lineHeight: '1.6', whiteSpace: 'pre-wrap' }}>
-          {email.body}
+          {isDecrypted && decryptedContent ? decryptedContent : email.body}
         </div>
       </div>
     </div>
