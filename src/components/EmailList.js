@@ -8,7 +8,8 @@ import {
   RefreshCw,
   RotateCcw,
   X,
-  Shield
+  Shield,
+  Key
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { useEmail } from '../context/EmailContext';
@@ -151,7 +152,20 @@ const EmailList = ({ onEmailSelect, selectedEmail }) => {
                 <span className={`subject ${!email.isRead ? 'fw-bold' : ''} flex-grow-1`}>
                   {email.subject}
                   {email.isPQCEncrypted && (
-                    <Shield size={14} className="text-primary ms-2" title="PQC Encrypted" />
+                    <>
+                      <Shield size={14} className="text-primary ms-2" title="PQC Encrypted" />
+                      <button
+                        className="btn btn-sm btn-outline-primary ms-2"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onEmailSelect(email);
+                        }}
+                        title="Open to decrypt"
+                      >
+                        <Key size={12} className="me-1" />
+                        Decrypt
+                      </button>
+                    </>
                   )}
                 </span>
                 <small className="text-muted ms-2">
