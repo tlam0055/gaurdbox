@@ -17,16 +17,22 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     // Check if user is logged in on app start
     const checkAuth = () => {
+      console.log('AuthContext: Checking authentication...');
       try {
         const storedUser = localStorage.getItem('user');
+        console.log('AuthContext: Stored user:', storedUser);
         if (storedUser) {
           const userData = JSON.parse(storedUser);
+          console.log('AuthContext: Parsed user data:', userData);
           setUser(userData);
+        } else {
+          console.log('AuthContext: No stored user found');
         }
       } catch (error) {
         console.error('Error checking auth:', error);
         localStorage.removeItem('user');
       } finally {
+        console.log('AuthContext: Setting isLoading to false');
         setIsLoading(false);
       }
     };
@@ -46,12 +52,15 @@ export const AuthProvider = ({ children }) => {
     localStorage.removeItem('user');
   };
 
+  const isAuthenticated = !!user;
+  console.log('AuthContext: isAuthenticated:', isAuthenticated, 'user:', user);
+
   const value = {
     user,
     login,
     logout,
     isLoading,
-    isAuthenticated: !!user
+    isAuthenticated
   };
 
   return (
