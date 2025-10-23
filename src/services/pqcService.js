@@ -184,25 +184,33 @@ class PQCService {
       
       console.log('Extracted encrypted message:', encryptedMessage.substring(0, 100) + '...');
       
+      // Debug current session state
+      this.debugSession();
+      
       // Use the stored shared secret for decryption
       if (!this.sharedSecret || !this.isInitialized) {
         console.log('No shared secret available, attempting to reinitialize PQC session...');
         try {
           // Try to restore the session with the same session ID if available
-          if (this.sessionId) {
+          if (this.sessionId && this.serverPublicKey) {
             console.log('Restoring PQC session with ID:', this.sessionId);
             // Regenerate keys with the same session ID
             this.generateClientKeyPair();
             const { ciphertext, sharedSecret } = await this.encapsulate(this.serverPublicKey);
             this.sharedSecret = sharedSecret;
             this.isInitialized = true;
+            console.log('Session restored successfully');
           } else {
+            console.log('No valid session to restore, initializing new session...');
             await this.initializePQCSession();
           }
         } catch (initError) {
+          console.error('Failed to restore session:', initError);
           throw new Error('No shared secret available and failed to reinitialize PQC session');
         }
       }
+      
+      console.log('Using shared secret for decryption:', this.sharedSecret?.substring(0, 20) + '...');
       
       const decryptedContent = this.decryptMessage(encryptedMessage.trim(), this.sharedSecret);
       
@@ -296,10 +304,11 @@ class PQCService {
 
   // Store session information for persistence
   storeSessionInfo() {
-    if (this.sessionId && this.sharedSecret) {
+    if (this.sessionId && this.sharedSecret && this.serverPublicKey) {
       const sessionData = {
         sessionId: this.sessionId,
         sharedSecret: this.sharedSecret,
+        serverPublicKey: this.serverPublicKey,
         timestamp: Date.now()
       };
       localStorage.setItem('pqc-session', JSON.stringify(sessionData));
@@ -317,8 +326,11 @@ class PQCService {
         if (Date.now() - data.timestamp < 24 * 60 * 60 * 1000) {
           this.sessionId = data.sessionId;
           this.sharedSecret = data.sharedSecret;
+          this.serverPublicKey = data.serverPublicKey;
           this.isInitialized = true;
           console.log('PQC session restored from storage');
+          console.log('Restored session ID:', this.sessionId);
+          console.log('Restored server public key:', this.serverPublicKey?.substring(0, 50) + '...');
           return true;
         }
       }
@@ -326,6 +338,65 @@ class PQCService {
       console.error('Failed to load session info:', error);
     }
     return false;
+  }
+
+  // Clear session information
+  clearSession() {
+    localStorage.removeItem('pqc-session');
+    this.sessionId = null;
+    this.sharedSecret = null;
+    this.serverPublicKey = null;
+    this.isInitialized = false;
+    console.log('PQC session cleared');
+  }
+
+  // Debug session information
+  debugSession() {
+    console.log('=== PQC Session Debug ===');
+    console.log('Session ID:', this.sessionId);
+    console.log('Is Initialized:', this.isInitialized);
+    console.log('Has Shared Secret:', !!this.sharedSecret);
+    console.log('Has Server Public Key:', !!this.serverPublicKey);
+    console.log('Shared Secret (first 20 chars):', this.sharedSecret?.substring(0, 20) + '...');
+    console.log('Server Public Key (first 20 chars):', this.serverPublicKey?.substring(0, 20) + '...');
+    console.log('========================');
+  }
+
+  // Test encryption/decryption consistency
+  async testEncryptionDecryption(testMessage = "Hello World Test") {
+    try {
+      console.log('🧪 Testing encryption/decryption consistency...');
+      console.log('Original message:', testMessage);
+      
+      // Ensure we have a session
+      if (!this.isInitialized || !this.sharedSecret) {
+        console.log('Initializing session for test...');
+        await this.initializePQCSession();
+      }
+      
+      // Encrypt
+      const encrypted = this.encryptMessage(testMessage, this.sharedSecret);
+      console.log('Encrypted:', encrypted.substring(0, 50) + '...');
+      
+      // Decrypt
+      const decrypted = this.decryptMessage(encrypted, this.sharedSecret);
+      console.log('Decrypted:', decrypted);
+      
+      // Check if they match
+      const matches = testMessage === decrypted;
+      console.log('✅ Test result:', matches ? 'SUCCESS' : 'FAILED');
+      
+      if (!matches) {
+        console.error('❌ Encryption/decryption mismatch!');
+        console.error('Original:', testMessage);
+        console.error('Decrypted:', decrypted);
+      }
+      
+      return matches;
+    } catch (error) {
+      console.error('❌ Test failed:', error);
+      return false;
+    }
   }
 
   simpleHash(message) {
