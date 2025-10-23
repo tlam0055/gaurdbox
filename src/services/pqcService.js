@@ -8,6 +8,8 @@ class PQCService {
     this.serverPublicKey = null;
     this.clientKeyPair = null;
     this.sharedSecret = null;
+    this.sessionId = null;
+    this.isInitialized = false;
   }
 
   // Fetch server's public key
@@ -30,9 +32,10 @@ class PQCService {
   // Generate client key pair (simulated - in real implementation, this would use PQC libraries)
   generateClientKeyPair() {
     // In a real implementation, this would use Kyber key generation
-    // For now, we'll simulate with random keys
-    const privateKey = this.generateRandomKey(32);
-    const publicKey = this.generateRandomKey(32);
+    // For now, we'll simulate with consistent keys based on session
+    const sessionSeed = this.sessionId || 'default-session';
+    const privateKey = this.generateConsistentKey(32, sessionSeed + '-private');
+    const publicKey = this.generateConsistentKey(32, sessionSeed + '-public');
     
     this.clientKeyPair = {
       privateKey: privateKey,
@@ -47,9 +50,10 @@ class PQCService {
   async encapsulate(serverPublicKey) {
     try {
       // In real implementation, this would use Kyber encapsulation
-      // For now, we'll simulate the process
-      const ciphertext = this.generateRandomKey(64);
-      const sharedSecret = this.generateRandomKey(32);
+      // For now, we'll simulate the process with consistent keys
+      const sessionSeed = this.sessionId || 'default-session';
+      const ciphertext = this.generateConsistentKey(64, sessionSeed + '-ciphertext');
+      const sharedSecret = this.generateConsistentKey(32, sessionSeed + '-shared');
       
       this.sharedSecret = sharedSecret;
       
@@ -181,10 +185,20 @@ class PQCService {
       console.log('Extracted encrypted message:', encryptedMessage.substring(0, 100) + '...');
       
       // Use the stored shared secret for decryption
-      if (!this.sharedSecret) {
+      if (!this.sharedSecret || !this.isInitialized) {
         console.log('No shared secret available, attempting to reinitialize PQC session...');
         try {
-          await this.initializePQCSession();
+          // Try to restore the session with the same session ID if available
+          if (this.sessionId) {
+            console.log('Restoring PQC session with ID:', this.sessionId);
+            // Regenerate keys with the same session ID
+            this.generateClientKeyPair();
+            const { ciphertext, sharedSecret } = await this.encapsulate(this.serverPublicKey);
+            this.sharedSecret = sharedSecret;
+            this.isInitialized = true;
+          } else {
+            await this.initializePQCSession();
+          }
         } catch (initError) {
           throw new Error('No shared secret available and failed to reinitialize PQC session');
         }
@@ -206,6 +220,19 @@ class PQCService {
     try {
       console.log('🔐 Initializing Post-Quantum Cryptography session...');
       
+      // Try to load existing session first
+      if (this.loadSessionInfo()) {
+        console.log('✅ PQC session restored from storage');
+        return {
+          serverPublicKey: this.serverPublicKey,
+          clientKeyPair: this.clientKeyPair,
+          sharedSecret: this.sharedSecret
+        };
+      }
+      
+      // Generate a consistent session ID
+      this.sessionId = this.generateSessionId();
+      
       // 1. Fetch server's public key
       await this.fetchServerPublicKey();
       
@@ -215,8 +242,14 @@ class PQCService {
       // 3. Perform key encapsulation
       const { ciphertext, sharedSecret } = await this.encapsulate(this.serverPublicKey);
       
+      this.isInitialized = true;
+      
+      // Store session for persistence
+      this.storeSessionInfo();
+      
       console.log('✅ PQC session initialized successfully');
       console.log('🔑 Shared secret established');
+      console.log('Session ID:', this.sessionId);
       
       return {
         serverPublicKey: this.serverPublicKey,
@@ -235,6 +268,64 @@ class PQCService {
     const array = new Uint8Array(length);
     crypto.getRandomValues(array);
     return Array.from(array, byte => byte.toString(16).padStart(2, '0')).join('');
+  }
+
+  generateSessionId() {
+    const timestamp = Date.now().toString();
+    const random = Math.random().toString(36).substring(2);
+    return `pqc-session-${timestamp}-${random}`;
+  }
+
+  generateConsistentKey(length, seed) {
+    // Generate a consistent key based on seed for reproducible encryption/decryption
+    let hash = 0;
+    for (let i = 0; i < seed.length; i++) {
+      const char = seed.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash = hash & hash; // Convert to 32-bit integer
+    }
+    
+    const key = [];
+    for (let i = 0; i < length; i++) {
+      hash = (hash * 31 + i) & 0xFFFFFFFF;
+      key.push((hash & 0xFF).toString(16).padStart(2, '0'));
+    }
+    
+    return key.join('');
+  }
+
+  // Store session information for persistence
+  storeSessionInfo() {
+    if (this.sessionId && this.sharedSecret) {
+      const sessionData = {
+        sessionId: this.sessionId,
+        sharedSecret: this.sharedSecret,
+        timestamp: Date.now()
+      };
+      localStorage.setItem('pqc-session', JSON.stringify(sessionData));
+      console.log('PQC session stored locally');
+    }
+  }
+
+  // Retrieve session information
+  loadSessionInfo() {
+    try {
+      const sessionData = localStorage.getItem('pqc-session');
+      if (sessionData) {
+        const data = JSON.parse(sessionData);
+        // Check if session is not too old (24 hours)
+        if (Date.now() - data.timestamp < 24 * 60 * 60 * 1000) {
+          this.sessionId = data.sessionId;
+          this.sharedSecret = data.sharedSecret;
+          this.isInitialized = true;
+          console.log('PQC session restored from storage');
+          return true;
+        }
+      }
+    } catch (error) {
+      console.error('Failed to load session info:', error);
+    }
+    return false;
   }
 
   simpleHash(message) {
