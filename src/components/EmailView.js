@@ -68,12 +68,46 @@ const EmailView = ({ email, onBack }) => {
     setDecryptError('');
 
     try {
-      const decrypted = await pqcService.decryptEmailContent(email.body);
-      setDecryptedContent(decrypted);
-      setIsDecrypted(true);
+      // Check if it's a PQC encrypted email
+      if (email.body.includes('🔒 PQC ENCRYPTED MESSAGE 🔒')) {
+        const decrypted = await pqcService.decryptEmailContent(email.body);
+        setDecryptedContent(decrypted);
+        setIsDecrypted(true);
+      } else if (email.body.includes('🔒 ENCRYPTED MESSAGE 🔒')) {
+        // Handle regular encrypted emails
+        const lines = email.body.split('\n');
+        let encryptedContent = '';
+        let inEncryptedSection = false;
+        
+        for (const line of lines) {
+          if (line.includes('🔒 ENCRYPTED MESSAGE 🔒')) {
+            inEncryptedSection = true;
+            continue;
+          }
+          if (line.includes('---') && inEncryptedSection) {
+            break;
+          }
+          if (inEncryptedSection && line.trim()) {
+            encryptedContent += line + '\n';
+          }
+        }
+        
+        if (encryptedContent.trim()) {
+          // Simple decryption for regular encrypted emails (remove encryption markers)
+          const decrypted = encryptedContent.trim();
+          setDecryptedContent(decrypted);
+          setIsDecrypted(true);
+        } else {
+          throw new Error('No encrypted content found');
+        }
+      } else {
+        // For any other email, just show the original content
+        setDecryptedContent(email.body);
+        setIsDecrypted(true);
+      }
     } catch (error) {
       console.error('Decryption failed:', error);
-      setDecryptError('Failed to decrypt email. Make sure you have the correct PQC session active.');
+      setDecryptError('Failed to decrypt email. This email may not be encrypted or the encryption format is not supported.');
     } finally {
       setIsDecrypting(false);
     }
@@ -215,7 +249,7 @@ const EmailView = ({ email, onBack }) => {
         </div>
 
         {/* PQC Encryption Status and Decrypt Button */}
-        {email.isPQCEncrypted && (
+        {(email.isPQCEncrypted || email.body.includes('🔒 PQC ENCRYPTED MESSAGE 🔒')) && (
           <div className="mb-3 p-3 bg-light rounded border">
             <div className="d-flex align-items-center justify-content-between">
               <div className="d-flex align-items-center gap-2">
@@ -253,6 +287,74 @@ const EmailView = ({ email, onBack }) => {
             )}
           </div>
         )}
+
+        {/* Always show decrypt button for any email with encryption markers */}
+        {!email.isPQCEncrypted && !email.body.includes('🔒 PQC ENCRYPTED MESSAGE 🔒') && 
+         (email.body.includes('🔒') || email.body.includes('ENCRYPTED') || email.body.includes('PQC')) && (
+          <div className="mb-3 p-3 bg-warning bg-opacity-10 rounded border border-warning">
+            <div className="d-flex align-items-center justify-content-between">
+              <div className="d-flex align-items-center gap-2">
+                <Shield className="text-warning" size={20} />
+                <span className="fw-medium text-warning">Encrypted Email Detected</span>
+                <span className="badge bg-warning">Encrypted</span>
+              </div>
+              <button
+                className={`btn btn-sm ${isDecrypted ? 'btn-outline-secondary' : 'btn-warning'}`}
+                onClick={handleDecryptClick}
+                disabled={isDecrypting}
+              >
+                {isDecrypting ? (
+                  <>
+                    <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                    Decrypting...
+                  </>
+                ) : isDecrypted ? (
+                  <>
+                    <Key size={16} className="me-1" />
+                    Hide Content
+                  </>
+                ) : (
+                  <>
+                    <Key size={16} className="me-1" />
+                    Decrypt Email
+                  </>
+                )}
+              </button>
+            </div>
+            {decryptError && (
+              <div className="alert alert-danger mt-2 mb-0" role="alert">
+                {decryptError}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Always visible decrypt button for any email */}
+        <div className="mb-3 d-flex justify-content-center">
+          <button
+            className={`btn ${isDecrypted ? 'btn-outline-secondary' : 'btn-primary'} btn-lg`}
+            onClick={handleDecryptClick}
+            disabled={isDecrypting}
+            style={{ minWidth: '200px' }}
+          >
+            {isDecrypting ? (
+              <>
+                <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                Decrypting...
+              </>
+            ) : isDecrypted ? (
+              <>
+                <Key size={18} className="me-2" />
+                Hide Decrypted Content
+              </>
+            ) : (
+              <>
+                <Key size={18} className="me-2" />
+                Decrypt Email Content
+              </>
+            )}
+          </button>
+        </div>
 
         <div className="text-dark" style={{ lineHeight: '1.6', whiteSpace: 'pre-wrap' }}>
           {isDecrypted && decryptedContent ? decryptedContent : email.body}
