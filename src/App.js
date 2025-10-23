@@ -161,7 +161,9 @@ function App() {
 function AppWithAuth() {
   const [showLogin, setShowLogin] = useState(true);
   const [showRegister, setShowRegister] = useState(false);
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading, user } = useAuth();
+
+  console.log('AppWithAuth: isAuthenticated:', isAuthenticated, 'user:', user, 'isLoading:', isLoading);
 
   if (isLoading) {
     return (

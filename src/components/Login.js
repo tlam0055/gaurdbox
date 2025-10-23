@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
 import { Mail, Lock, Eye, EyeOff, LogIn } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
 
 const Login = ({ onLogin, onSwitchToRegister }) => {
+  const { login } = useAuth();
   const [formData, setFormData] = useState({
     email: '',
     password: ''
@@ -23,6 +25,8 @@ const Login = ({ onLogin, onSwitchToRegister }) => {
     setIsLoading(true);
     setError('');
 
+    console.log('Attempting login with:', formData.email);
+
     try {
       const response = await fetch('http://127.0.0.1:5000/login', {
         method: 'POST',
@@ -32,20 +36,26 @@ const Login = ({ onLogin, onSwitchToRegister }) => {
         body: JSON.stringify(formData)
       });
 
+      console.log('Response status:', response.status);
       const data = await response.json();
+      console.log('Response data:', data);
 
       if (response.ok) {
         // Store user data and token
-        localStorage.setItem('user', JSON.stringify({
+        const userData = {
           email: formData.email,
           token: data.token,
           pqcPublicKey: data.pqc_public_key
-        }));
+        };
+        console.log('Storing user data:', userData);
+        localStorage.setItem('user', JSON.stringify(userData));
+        login(userData);
         onLogin(data);
       } else {
         setError(data.message || 'Login failed');
       }
     } catch (err) {
+      console.error('Login error:', err);
       setError('Connection error. Please check if the server is running.');
     } finally {
       setIsLoading(false);

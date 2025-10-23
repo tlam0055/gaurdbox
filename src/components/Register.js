@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
 import { Mail, Lock, Eye, EyeOff, UserPlus, User } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
 
 const Register = ({ onRegister, onSwitchToLogin }) => {
+  const { login } = useAuth();
   const [formData, setFormData] = useState({
     email: '',
     password: '',

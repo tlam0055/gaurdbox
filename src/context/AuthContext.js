@@ -35,8 +35,10 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   const login = (userData) => {
+    console.log('AuthContext: login called with:', userData);
     setUser(userData);
     localStorage.setItem('user', JSON.stringify(userData));
+    console.log('AuthContext: user set to:', userData);
   };
 
   const logout = () => {
