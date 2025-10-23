@@ -361,3 +361,4 @@ if __name__ == "__main__":
     tester = PQCRequirementTester()
     success = tester.run_all_tests()
     exit(0 if success else 1)
+

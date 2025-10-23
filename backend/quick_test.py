@@ -16,3 +16,4 @@ response = requests.post("http://127.0.0.1:5000/encapsulate",
 
 print(f"Response status: {response.status_code}")
 print(f"Response: {response.text}")
+

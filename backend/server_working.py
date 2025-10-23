@@ -134,3 +134,4 @@ if __name__ == "__main__":
     print("Public Key (first 50 chars):", server_pk.hex()[:50], "...")
     print("Signature Public Key (first 50 chars):", server_signature_pk[:50], "...")
     app.run(host="127.0.0.1", port=5000, debug=True)
+

@@ -34,3 +34,4 @@ echo "   python3 server.py"
 echo ""
 echo "🧪 To test the client:"
 echo "   python3 client.py"
+

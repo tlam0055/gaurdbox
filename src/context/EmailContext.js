@@ -1,5 +1,7 @@
-import React, { createContext, useContext, useState, useReducer } from 'react';
+import React, { createContext, useContext, useState, useReducer, useEffect } from 'react';
 import { format } from 'date-fns';
+import emailService from '../services/emailService';
+import { useAuth } from './AuthContext';
 
 // Mock email data
 const mockEmails = [
@@ -111,12 +113,46 @@ const emailReducer = (state, action) => {
 };
 
 export const EmailProvider = ({ children }) => {
-  const [emails, dispatch] = useReducer(emailReducer, mockEmails);
+  const [emails, dispatch] = useReducer(emailReducer, []);
   const [currentFolder, setCurrentFolder] = useState('inbox');
   const [searchQuery, setSearchQuery] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const { user, isAuthenticated } = useAuth();
 
-  const markAsRead = (id) => {
-    dispatch({ type: 'MARK_AS_READ', id });
+  // Load emails when user is authenticated
+  useEffect(() => {
+    if (isAuthenticated && user) {
+      loadEmails();
+    } else {
+      dispatch({ type: 'SET_EMAILS', emails: [] });
+    }
+  }, [isAuthenticated, user, currentFolder]);
+
+  const loadEmails = async () => {
+    if (!isAuthenticated) return;
+    
+    setIsLoading(true);
+    try {
+      const fetchedEmails = await emailService.getEmails(currentFolder);
+      dispatch({ type: 'SET_EMAILS', emails: fetchedEmails });
+    } catch (error) {
+      console.error('Error loading emails:', error);
+      // Fallback to mock data for demo purposes
+      dispatch({ type: 'SET_EMAILS', emails: mockEmails });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const markAsRead = async (id) => {
+    try {
+      await emailService.markAsRead(id);
+      dispatch({ type: 'MARK_AS_READ', id });
+    } catch (error) {
+      console.error('Error marking email as read:', error);
+      // Still update UI optimistically
+      dispatch({ type: 'MARK_AS_READ', id });
+    }
   };
 
   const markAsUnread = (id) => {
@@ -127,8 +163,15 @@ export const EmailProvider = ({ children }) => {
     dispatch({ type: 'TOGGLE_STAR', id });
   };
 
-  const deleteEmail = (id) => {
-    dispatch({ type: 'DELETE_EMAIL', id });
+  const deleteEmail = async (id) => {
+    try {
+      await emailService.deleteEmail(id);
+      dispatch({ type: 'DELETE_EMAIL', id });
+    } catch (error) {
+      console.error('Error deleting email:', error);
+      // Still update UI optimistically
+      dispatch({ type: 'DELETE_EMAIL', id });
+    }
   };
 
   const restoreEmail = (id) => {
@@ -139,19 +182,26 @@ export const EmailProvider = ({ children }) => {
     dispatch({ type: 'PERMANENT_DELETE', id });
   };
 
-  const addEmail = (email) => {
-    const newEmail = {
-      ...email,
-      id: Date.now(),
-      timestamp: new Date(),
-      isRead: false,
-      isStarred: false,
-      isImportant: false,
-      isDeleted: false,
-      deletedAt: null,
-      labels: []
-    };
-    dispatch({ type: 'ADD_EMAIL', email: newEmail });
+  const addEmail = async (emailData) => {
+    try {
+      const result = await emailService.sendEmail(emailData);
+      const newEmail = {
+        ...emailData,
+        id: result.email_id || Date.now(),
+        timestamp: new Date(),
+        isRead: false,
+        isStarred: false,
+        isImportant: false,
+        isDeleted: false,
+        deletedAt: null,
+        labels: []
+      };
+      dispatch({ type: 'ADD_EMAIL', email: newEmail });
+      return result;
+    } catch (error) {
+      console.error('Error sending email:', error);
+      throw error;
+    }
   };
 
   const getFilteredEmails = () => {
@@ -159,13 +209,13 @@ export const EmailProvider = ({ children }) => {
 
     // Filter by folder
     if (currentFolder === 'inbox') {
-      filtered = emails.filter(email => !email.isDeleted);
+      filtered = emails.filter(email => !email.isDeleted && email.to === user?.email);
     } else if (currentFolder === 'starred') {
       filtered = emails.filter(email => email.isStarred && !email.isDeleted);
     } else if (currentFolder === 'important') {
       filtered = emails.filter(email => email.isImportant && !email.isDeleted);
     } else if (currentFolder === 'sent') {
-      filtered = emails.filter(email => email.from === 'you@example.com' && !email.isDeleted);
+      filtered = emails.filter(email => email.from === user?.email && !email.isDeleted);
     } else if (currentFolder === 'trash') {
       filtered = emails.filter(email => email.isDeleted);
     }
@@ -175,6 +225,7 @@ export const EmailProvider = ({ children }) => {
       filtered = filtered.filter(email => 
         email.subject.toLowerCase().includes(searchQuery.toLowerCase()) ||
         email.from.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        email.to.toLowerCase().includes(searchQuery.toLowerCase()) ||
         email.body.toLowerCase().includes(searchQuery.toLowerCase())
       );
     }
@@ -194,7 +245,9 @@ export const EmailProvider = ({ children }) => {
     deleteEmail,
     restoreEmail,
     permanentDeleteEmail,
-    addEmail
+    addEmail,
+    isLoading,
+    loadEmails
   };
 
   return (

@@ -15,10 +15,12 @@ import {
   CheckCircle
 } from 'lucide-react';
 import { useEmail } from '../context/EmailContext';
+import { useAuth } from '../context/AuthContext';
 import pqcService from '../services/pqcService';
 
 const Compose = ({ onClose, replyTo }) => {
   const { addEmail } = useEmail();
+  const { user } = useAuth();
   const [to, setTo] = useState(replyTo ? replyTo.from : '');
   const [cc, setCc] = useState('');
   const [bcc, setBcc] = useState('');
@@ -74,7 +76,7 @@ const Compose = ({ onClose, replyTo }) => {
     }
 
     const newEmail = {
-      from: 'you@example.com',
+      from: user?.email || 'you@example.com',
       to: to.trim(),
       cc: cc.trim(),
       bcc: bcc.trim(),

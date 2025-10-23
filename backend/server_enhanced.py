@@ -279,3 +279,4 @@ if __name__ == "__main__":
     print("✅ Kyber512 keypair generated")
     print("Public Key (first 50 chars):", server_pk.hex()[:50], "...")
     app.run(host="127.0.0.1", port=5000, debug=True)
+

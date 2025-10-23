@@ -3,14 +3,18 @@ import Sidebar from './components/Sidebar';
 import EmailList from './components/EmailList';
 import EmailView from './components/EmailView';
 import Compose from './components/Compose';
+import Login from './components/Login';
+import Register from './components/Register';
 import PQCStatus from './components/PQCStatus';
 import { EmailProvider } from './context/EmailContext';
+import { AuthProvider, useAuth } from './context/AuthContext';
 
-function App() {
+function AppContent() {
   const [selectedEmail, setSelectedEmail] = useState(null);
   const [showCompose, setShowCompose] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  const { user, logout } = useAuth();
 
   useEffect(() => {
     const checkMobile = () => {
@@ -58,11 +62,20 @@ function App() {
                 </div>
                 <div className="d-flex align-items-center gap-3">
                   <PQCStatus />
+                  <div className="text-muted small">
+                    Welcome, {user?.email}
+                  </div>
                   <button 
                     className="btn btn-primary btn-sm rounded-pill px-3"
                     onClick={handleCompose}
                   >
                     ✏️ Compose
+                  </button>
+                  <button 
+                    className="btn btn-outline-secondary btn-sm"
+                    onClick={logout}
+                  >
+                    Logout
                   </button>
                 </div>
               </div>
@@ -135,6 +148,59 @@ function App() {
         </div>
     </EmailProvider>
   );
+}
+
+function App() {
+  return (
+    <AuthProvider>
+      <AppWithAuth />
+    </AuthProvider>
+  );
+}
+
+function AppWithAuth() {
+  const [showLogin, setShowLogin] = useState(true);
+  const [showRegister, setShowRegister] = useState(false);
+  const { isAuthenticated, isLoading } = useAuth();
+
+  if (isLoading) {
+    return (
+      <div className="min-vh-100 d-flex align-items-center justify-content-center">
+        <div className="text-center">
+          <div className="spinner-border text-primary" role="status">
+            <span className="visually-hidden">Loading...</span>
+          </div>
+          <p className="mt-2 text-muted">Loading GuardBox...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    if (showLogin) {
+      return (
+        <Login 
+          onLogin={() => {}} 
+          onSwitchToRegister={() => {
+            setShowLogin(false);
+            setShowRegister(true);
+          }} 
+        />
+      );
+    } else {
+      return (
+        <Register 
+          onRegister={() => {}} 
+          onSwitchToLogin={() => {
+            setShowRegister(false);
+            setShowLogin(true);
+          }} 
+        />
+      );
+    }
+  }
+
+  return <AppContent />;
 }
 
 export default App;
