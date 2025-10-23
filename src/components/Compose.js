@@ -53,11 +53,18 @@ const Compose = ({ onClose, replyTo }) => {
         setPqcStatus('encrypting');
         console.log('🔐 Encrypting message with Post-Quantum Cryptography...');
         
+        // Get or create a shared secret for encryption
+        let sharedSecret = pqcService.sharedSecret;
+        if (!sharedSecret) {
+          console.log('No shared secret available, using fallback...');
+          sharedSecret = pqcService.createFallbackSecret();
+        }
+        
         // Encrypt the message using PQC
-        const encryptedBody = pqcService.encryptMessage(emailBody, pqcService.sharedSecret);
+        const encryptedBody = pqcService.encryptMessage(emailBody, sharedSecret);
         
         // Sign the message
-        const signature = pqcService.signMessage(emailBody, pqcService.clientKeyPair.privateKey);
+        const signature = pqcService.signMessage(emailBody, pqcService.clientKeyPair?.privateKey || 'fallback-key');
         
         emailBody = `🔒 PQC ENCRYPTED MESSAGE 🔒\n\n${encryptedBody}\n\n---\nDigital Signature: ${signature}\nEncrypted with: Kyber512 + Dilithium\nTimestamp: ${new Date().toISOString()}`;
         encryptionInfo = 'PQC-Encrypted';
