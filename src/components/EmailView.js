@@ -68,11 +68,18 @@ const EmailView = ({ email, onBack }) => {
     setDecryptError('');
 
     try {
+      console.log('🔓 Attempting to decrypt email...');
+      console.log('Email body preview:', email.body.substring(0, 200) + '...');
+      console.log('Is PQC encrypted:', email.isPQCEncrypted);
+      console.log('Encryption info:', email.encryptionInfo);
+      
       // Check if it's a PQC encrypted email
       if (email.body.includes('🔒 PQC ENCRYPTED MESSAGE 🔒')) {
+        console.log('Detected PQC encrypted email, attempting decryption...');
         const decrypted = await pqcService.decryptEmailContent(email.body);
         setDecryptedContent(decrypted);
         setIsDecrypted(true);
+        console.log('✅ PQC email decrypted successfully');
       } else if (email.body.includes('🔒 ENCRYPTED MESSAGE 🔒')) {
         // Handle regular encrypted emails
         const lines = email.body.split('\n');
@@ -106,8 +113,9 @@ const EmailView = ({ email, onBack }) => {
         setIsDecrypted(true);
       }
     } catch (error) {
-      console.error('Decryption failed:', error);
-      setDecryptError('Failed to decrypt email. This email may not be encrypted or the encryption format is not supported.');
+      console.error('❌ Decryption failed:', error);
+      console.error('Error details:', error.message);
+      setDecryptError(`Failed to decrypt email: ${error.message}`);
     } finally {
       setIsDecrypting(false);
     }

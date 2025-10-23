@@ -149,6 +149,12 @@ class PQCService {
   async decryptEmailContent(encryptedContent) {
     try {
       console.log('🔓 Decrypting PQC encrypted email...');
+      console.log('Encrypted content preview:', encryptedContent.substring(0, 200) + '...');
+      
+      // Check if this is a PQC encrypted message
+      if (!encryptedContent.includes('🔒 PQC ENCRYPTED MESSAGE 🔒')) {
+        throw new Error('This email is not PQC encrypted');
+      }
       
       // Extract the encrypted message from the PQC format
       const lines = encryptedContent.split('\n');
@@ -169,12 +175,19 @@ class PQCService {
       }
       
       if (!encryptedMessage.trim()) {
-        throw new Error('No encrypted content found');
+        throw new Error('No encrypted content found in PQC format');
       }
+      
+      console.log('Extracted encrypted message:', encryptedMessage.substring(0, 100) + '...');
       
       // Use the stored shared secret for decryption
       if (!this.sharedSecret) {
-        throw new Error('No shared secret available for decryption');
+        console.log('No shared secret available, attempting to reinitialize PQC session...');
+        try {
+          await this.initializePQCSession();
+        } catch (initError) {
+          throw new Error('No shared secret available and failed to reinitialize PQC session');
+        }
       }
       
       const decryptedContent = this.decryptMessage(encryptedMessage.trim(), this.sharedSecret);
@@ -184,7 +197,7 @@ class PQCService {
       
     } catch (error) {
       console.error('❌ Email decryption failed:', error);
-      throw new Error('Failed to decrypt email content');
+      throw new Error(`Failed to decrypt email content: ${error.message}`);
     }
   }
 
