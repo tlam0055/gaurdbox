@@ -10,14 +10,14 @@ import jwt
 import secrets
 
 app = Flask(__name__)
-CORS(app)  # Enable CORS for all routes
+CORS(app)  
 
-# Use Kyber512
+
 set_mode("512")
 
-# Generate server keypairs at startup
+
 print("🔐 Generating Post-Quantum Cryptography keypairs...")
-server_pk, server_sk = keygen()  # Kyber KEM
+server_pk, server_sk = keygen()  
 
 # Generate server signature keypair
 server_signature_pk, server_signature_sk = secrets.token_hex(32), secrets.token_hex(32)
@@ -91,10 +91,10 @@ def register():
         if username in users_db:
             return jsonify({"error": "User already exists"}), 400
             
-        # Hash password
+       
         password_hash = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt())
         
-        # Generate user's PQC keypairs
+       
         user_kyber_pk, user_kyber_sk = keygen()
         user_signature_pk, user_signature_sk = secrets.token_hex(32), secrets.token_hex(32)
         
@@ -136,11 +136,11 @@ def login():
             
         user = users_db[username]
         
-        # Verify password
+       
         if not bcrypt.checkpw(password.encode('utf-8'), user['password_hash']):
             return jsonify({"error": "Invalid password"}), 401
             
-        # Generate JWT token
+       
         token = jwt.encode({
             'username': username,
             'exp': datetime.utcnow() + timedelta(hours=24)
@@ -165,10 +165,10 @@ def encapsulate_key():
         if not client_pk_hex:
             return jsonify({"error": "Client public key required"}), 400
             
-        # Convert hex to bytes
+        
         client_pk = bytes.fromhex(client_pk_hex)
         
-        # Perform Kyber encapsulation
+        
         ciphertext, shared_secret = encapsulate(client_pk)
         
         return jsonify({
@@ -189,7 +189,7 @@ def sign_message_endpoint():
         if not message:
             return jsonify({"error": "Message required"}), 400
             
-        # Sign message with server's signature private key
+        
         signature = sign_message(server_signature_sk, message)
         
         return jsonify({
@@ -257,8 +257,8 @@ def test_pqc():
         return jsonify({"error": str(e)}), 500
 
 if __name__ == "__main__":
-    print("✅ Kyber512 keypair generated")
-    print("✅ Digital signature keypair generated")
+    print(" Kyber512 keypair generated")
+    print(" Digital signature keypair generated")
     print("Public Key (first 50 chars):", server_pk.hex()[:50], "...")
     print("Signature Public Key (first 50 chars):", server_signature_pk[:50], "...")
     app.run(host="127.0.0.1", port=5000, debug=True)

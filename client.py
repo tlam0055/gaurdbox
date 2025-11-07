@@ -23,17 +23,12 @@ def fetch_server_pk(server_url: str) -> bytes:
 
 
 def get_kyber_backend() -> tuple[str, Callable[[bytes], Tuple[bytes, bytes]]]:
-    """
-    Return a (backend_name, encapsulate_fn) pair.
-    encapsulate_fn(pk) -> (ciphertext, shared_secret)
-    Prefers smaj_kyber to match the server; falls back to pqcrypto if available.
-    """
     
-    # 1) Try smaj_kyber (matches your Flask server)
+    # 1) Try smaj_kyber 
     try:
-        from smaj_kyber import set_mode  # type: ignore
-        set_mode("512")  # align with server
-        # Some releases use 'encapsulate', others 'encrypt'; detect dynamically.
+        from smaj_kyber import set_mode  
+        set_mode("512")  
+        
         try:
             from smaj_kyber import encapsulate as _enc  # type: ignore
             def encapsulate_fn(pk: bytes) -> Tuple[bytes, bytes]:
@@ -49,16 +44,16 @@ def get_kyber_backend() -> tuple[str, Callable[[bytes], Tuple[bytes, bytes]]]:
     except Exception:
         pass
 
-    # 2) Fallback: pqcrypto (works on many envs, but Python 3.13 can be tricky)
+    # 2) Fallback: pqcrypto 
     try:
-        # Prefer importing the concrete submodule directly
-        from pqcrypto.kem.kyber512 import encrypt as pq_encrypt  # type: ignore
+        
+        from pqcrypto.kem.kyber512 import encrypt as pq_encrypt  
         def encapsulate_fn(pk: bytes) -> Tuple[bytes, bytes]:
             ct, ss = pq_encrypt(pk)
             return ct, ss
         return "pqcrypto.kyber512", encapsulate_fn
     except Exception:
-        # Last attempt: module import style (older docs)
+        
         try:
             from pqcrypto.kem import kyber512  # type: ignore
             def encapsulate_fn(pk: bytes) -> Tuple[bytes, bytes]:
